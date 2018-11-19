@@ -4,6 +4,8 @@ const { storage } = lib.utils;
 const {
   BROUGHT_DONUTS_REGEX,
   DONUT_HISTORY_KEY,
+  LOCALE_STRING_FMT,
+  LOCALE_STRING_OPTS,
   MAX_LEADERS,
   RANKS_KEY,
 } = require('../../utils/constants');
@@ -27,7 +29,7 @@ const {
 module.exports = (user, channel, text = '', command = {}, botToken = null, callback) => {
   let userName;
 
-  text = text.toLowerCase();
+  text = text.trim().toLowerCase();
 
   if (text === 'me') {
     userName = user;
@@ -110,7 +112,20 @@ module.exports = (user, channel, text = '', command = {}, botToken = null, callb
       const message = (newScore === 0 ? 'You are all caught up...\n\nfor now' : `You still owe ${newScore} donut days.`);
 
       callback(null, {
-        text: `Great work, <@${donutUser}>!  ${message}`,
+        text: `Thanks for bringing donuts in, <@${donutUser}>!  ${message}`,
+        attachments: [],
+      });
+    });
+  } else if (user === 'UBXQ2BZDW' && text.startsWith('add')) {
+    // Added this section so I can admin if needed
+    const results = /@(\S+)\s*/i.exec(text);
+    const userName = results[1];
+
+    addUserToDonutHistory(userName, newCount => {
+      const verb = (newCount > 1 ? `Now at ${newCount} in` : 'Added to');
+
+      callback(null, {
+        text: `Tough break, <@${userName}>. ${verb} donut history`,
         attachments: [],
       });
     });
@@ -151,6 +166,40 @@ Send out a poll using the word "donut", such as:
       attachments: []
     });
   }
+};
+
+/**
+ * Used to add/create a timestamp of when computer was left unlocked
+ *
+ * @param {String} userName The username of the offending user
+ * @param {Function} callback The callback after the offense has been recorded
+ */
+const addUserToDonutHistory = (userName, callback) => {
+  const now = new Date().getTime();
+
+  storage.get(DONUT_HISTORY_KEY, (err, storedHistory) => {
+    let history;
+
+    if (err) {
+      console.error('Failed to get history', err);
+
+      return;
+    } else if (!storedHistory) {
+      console.log('No storage set, creating now...');
+
+      history = {};
+    } else {
+      history = storedHistory;
+    }
+
+    if (!history[userName]) history[userName] = [];
+
+    history[userName].push(now);
+
+    storage.set(DONUT_HISTORY_KEY, history, err => {
+      callback(history[userName].length);
+    });
+  });
 };
 
 /**
@@ -221,15 +270,18 @@ const sendEmptyListMessage = callback => {
 };
 
 const formatDonutList = (donutList, callback) => {
-  let message = `*Donut List as of ${new Date().toLocaleString()}*`;
+  let message = `*Donut List as of ${new Date().toLocaleString(LOCALE_STRING_FMT, LOCALE_STRING_OPTS)}*`;
   let counter = 0;
 
   donutList.forEach(({ earliest, history, userName }) => {
     const dateAdded = new Date(earliest);
+    const historyCount = history.length;
+    const days = (historyCount === 1 ? 'day' : 'days');
+    const added = (historyCount === 1 ? 'added' : 'first added');
 
     if (history.length === 0) return;
 
-    message += `\n${++counter}. <@${userName}> owes ${history.length} donut days (first added ${dateAdded.toLocaleString()})`;
+    message += `\n${++counter}. <@${userName}> owes ${historyCount} donut ${days} (${added} ${dateAdded.toLocaleString(LOCALE_STRING_FMT, LOCALE_STRING_OPTS)})`;
   });
 
   callback(null, {
@@ -249,7 +301,7 @@ const sendDonutReminder = (nextForDonuts = {}, callback) => {
   const dateAdded = new Date(earliest);
   const message = `Heads up, <@${userName}>, you are the next to owe donuts.
 
-This is from ${dateAdded.toLocaleString()}.  You currently owe ${history.length} donut days total.`;
+This is from ${dateAdded.toLocaleString(LOCALE_STRING_FMT, LOCALE_STRING_OPTS)}.  You currently owe ${history.length} donut days total.`;
 
   callback(null, {
     text: message,
