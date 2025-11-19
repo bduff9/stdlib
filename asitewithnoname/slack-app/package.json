@@ -6,7 +6,7 @@
   "main": "functions/__main__.js",
   "dependencies": {
     "lib": "^3.0.1",
-    "mime": "^1.3.4",
+    "mime": "^4.0.0",
     "request": "^2.79.0",
     "slack": "^8.2.1",
     "async": "^2.1.5",
